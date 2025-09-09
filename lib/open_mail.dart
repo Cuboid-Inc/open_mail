@@ -98,6 +98,23 @@ final List<MailApp> mailApps = <MailApp>[
 ];
 
 class OpenMail {
+  /// Opens the device settings page (works for both iOS and Android)
+  static Future<void> openDeviceSettings() async {
+    final settingsUri = _isIOS
+        ? Uri.parse('App-Prefs:')
+        : Uri.parse('package:com.android.settings');
+    try {
+      await launchUrl(settingsUri);
+    } catch (_) {
+      // Fallback: try generic settings URL
+      if (_isIOS) {
+        await launchUrl(Uri.parse('app-settings:'));
+      } else {
+        await launchUrl(Uri.parse('settings:'));
+      }
+    }
+  }
+
   OpenMail._();
 
   @visibleForTesting
@@ -252,7 +269,7 @@ class OpenMail {
         // Always use mailto: for Apple Mail to allow pre-filled fields
         if (app.name == 'Apple Mail') {
           try {
-            print(
+            debugPrint(
                 'DEBUG: Apple Mail detected, using mailto: fallback for compose');
             final mailtoUri = Uri(
               scheme: 'mailto',
@@ -266,10 +283,10 @@ class OpenMail {
                   'bcc': emailContent.bcc!.join(','),
               },
             );
-            print('DEBUG: Mailto URI for Apple Mail: $mailtoUri');
+            debugPrint('DEBUG: Mailto URI for Apple Mail: $mailtoUri');
             result = await launchUrl(mailtoUri);
           } catch (e) {
-            print('ERROR: Apple Mail mailto fallback failed: $e');
+            debugPrint('ERROR: Apple Mail mailto fallback failed: $e');
           }
         } else {
           String? launchScheme = app.composeLaunchScheme(emailContent);
@@ -277,13 +294,13 @@ class OpenMail {
             try {
               final uri = Uri.parse(launchScheme);
               final canLaunch = await canLaunchUrl(uri);
-              print(
+              debugPrint(
                   'DEBUG: Can launch custom scheme for ${app.name}: $canLaunch');
               if (canLaunch) {
                 result = await launchUrl(uri,
                     mode: LaunchMode.externalNonBrowserApplication);
               } else {
-                print('DEBUG: Custom scheme failed, falling back to mailto:');
+                debugPrint('DEBUG: Custom scheme failed, falling back to mailto:');
                 final mailtoUri = Uri(
                   scheme: 'mailto',
                   path: emailContent.to?.join(',') ?? '',
@@ -296,11 +313,11 @@ class OpenMail {
                       'bcc': emailContent.bcc!.join(','),
                   },
                 );
-                print('DEBUG: Mailto URI fallback: $mailtoUri');
+                debugPrint('DEBUG: Mailto URI fallback: $mailtoUri');
                 result = await launchUrl(mailtoUri);
               }
             } catch (e) {
-              print('ERROR: Custom scheme failed, trying mailto fallback: $e');
+              debugPrint('ERROR: Custom scheme failed, trying mailto fallback: $e');
               try {
                 final mailtoUri = Uri(
                   scheme: 'mailto',
@@ -314,10 +331,10 @@ class OpenMail {
                       'bcc': emailContent.bcc!.join(','),
                   },
                 );
-                print('DEBUG: Mailto URI fallback (exception): $mailtoUri');
+                debugPrint('DEBUG: Mailto URI fallback (exception): $mailtoUri');
                 result = await launchUrl(mailtoUri);
               } catch (e2) {
-                print('ERROR: Mailto fallback also failed: $e2');
+                debugPrint('ERROR: Mailto fallback also failed: $e2');
               }
             }
           }
@@ -341,7 +358,7 @@ class OpenMail {
     required MailApp mailApp,
     required EmailContent emailContent,
   }) async {
-    // Debug prints removed for production
+    // Debug debugPrints removed for production
 
     if (_isAndroid) {
       final result = await _channel.invokeMethod<bool>(
@@ -352,64 +369,71 @@ class OpenMail {
             },
           ) ??
           false;
-      // Debug print removed
+      // Debug debugPrint removed
       return result;
     } else if (_isIOS) {
       // Always use mailto: for Apple Mail
       if (mailApp.name == 'Apple Mail') {
         try {
-          // Debug print removed
+          final qp = <String, String>{
+            'subject': emailContent.subject ?? '',
+            'body': emailContent.body ?? '',
+            if (emailContent.cc?.isNotEmpty ?? false)
+              'cc': emailContent.cc!.join(','),
+            if (emailContent.bcc?.isNotEmpty ?? false)
+              'bcc': emailContent.bcc!.join(','),
+          };
+          // Attachments (Apple Mail only, mailto:)
+          if (emailContent.attachments != null &&
+              emailContent.attachments!.isNotEmpty) {
+            // Apple Mail supports 'attachment' param (file:// URLs)
+            for (var i = 0; i < emailContent.attachments!.length; i++) {
+              qp['attachment${i > 0 ? i + 1 : ''}'] =
+                  emailContent.attachments![i];
+            }
+          }
           final mailtoUri = Uri(
             scheme: 'mailto',
             path: emailContent.to?.join(',') ?? '',
-            queryParameters: {
-              'subject': emailContent.subject ?? '',
-              'body': emailContent.body ?? '',
-              if (emailContent.cc?.isNotEmpty ?? false)
-                'cc': emailContent.cc!.join(','),
-              if (emailContent.bcc?.isNotEmpty ?? false)
-                'bcc': emailContent.bcc!.join(','),
-            },
+            queryParameters: qp,
           );
-          // Debug print removed
           return await launchUrl(mailtoUri);
         } catch (e) {
-          // Debug print removed
           return false;
         }
       }
       // Otherwise, try custom scheme, fallback to mailto if needed
       String? launchScheme = mailApp.composeLaunchScheme(emailContent);
-      // Debug print removed
+      // Debug debugPrint removed
       if (launchScheme != null) {
         try {
           final uri = Uri.parse(launchScheme);
           final canLaunch = await canLaunchUrl(uri);
-          // Debug print removed
+          // Debug debugPrint removed
           if (canLaunch) {
             // Special handling for Gmail
             if (mailApp.name == 'Gmail') {
-              // Debug print removed
+              // Debug debugPrint removed
               final recipient = emailContent.to?.join(',') ?? '';
               final subject = Uri.encodeComponent(emailContent.subject ?? '');
               final body = Uri.encodeComponent(emailContent.body ?? '');
               final gmailUrl =
                   'googlegmail://co?to=$recipient&subject=$subject&body=$body';
-              // Debug print removed
+              // Debug debugPrint removed
               try {
                 return await launchUrl(Uri.parse(gmailUrl),
                     mode: LaunchMode.externalNonBrowserApplication);
               } catch (e) {
-                // Debug print removed
+                // Debug debugPrint removed
               }
             }
             // Standard launch for other apps
             final result = await launchUrl(uri,
                 mode: LaunchMode.externalNonBrowserApplication);
-            // Debug print removed
+            // Debug debugPrint removed
             return result;
           } else {
-            // Debug print removed
+            // Debug debugPrint removed
             final mailtoUri = Uri(
               scheme: 'mailto',
               path: emailContent.to?.join(',') ?? '',
@@ -422,11 +446,11 @@ class OpenMail {
                   'bcc': emailContent.bcc!.join(','),
               },
             );
-            // Debug print removed
+            // Debug debugPrint removed
             return await launchUrl(mailtoUri);
           }
         } catch (e) {
-          // Debug print removed
+          // Debug debugPrint removed
           try {
             final mailtoUri = Uri(
               scheme: 'mailto',
@@ -440,10 +464,10 @@ class OpenMail {
                   'bcc': emailContent.bcc!.join(','),
               },
             );
-            // Debug print removed
+            // Debug debugPrint removed
             return await launchUrl(mailtoUri);
           } catch (e2) {
-            // Debug print removed
+            // Debug debugPrint removed
             return false;
           }
         }
@@ -461,45 +485,45 @@ class OpenMail {
     String name,
     EmailContent? emailContent,
   ) async {
-    // Debug print removed
+    // Debug debugPrint removed
     final mailApp = _supportedMailApps
         .firstWhereOrNull((x) => x.name == name); // Use _supportedMailApps
     if (mailApp == null || mailApp.iosLaunchScheme == null) {
-      // Debug print removed
+      // Debug debugPrint removed
       return OpenMailAppResult(didOpen: false);
     }
 
     String? launchScheme;
 
     if (emailContent != null) {
-      // Debug print removed
+      // Debug debugPrint removed
       launchScheme = mailApp.composeLaunchScheme(emailContent);
-      // Debug print removed
+      // Debug debugPrint removed
     } else {
       launchScheme = mailApp.iosLaunchScheme;
-      // Debug print removed
+      // Debug debugPrint removed
     }
 
     if (launchScheme != null) {
       try {
         final uri = Uri.parse(launchScheme);
         final canLaunch = await canLaunchUrl(uri);
-        // Debug print removed
+        // Debug debugPrint removed
 
         if (canLaunch) {
           final didLaunch = await launchUrl(uri,
               mode: LaunchMode.externalNonBrowserApplication);
-          // Debug print removed
+          // Debug debugPrint removed
           return OpenMailAppResult(didOpen: didLaunch);
         }
       } catch (e) {
-        // Debug print removed
+        // Debug debugPrint removed
       }
 
       // Fallback to mailto: scheme for composing emails
       if (emailContent != null) {
         try {
-          print('DEBUG: Trying mailto fallback');
+          debugPrint('DEBUG: Trying mailto fallback');
           final mailtoUri = Uri(
             scheme: 'mailto',
             path: emailContent.to?.join(',') ?? '',
@@ -513,11 +537,11 @@ class OpenMail {
             },
           );
 
-          print('DEBUG: Mailto URI: $mailtoUri');
+          debugPrint('DEBUG: Mailto URI: $mailtoUri');
           final didLaunch = await launchUrl(mailtoUri);
           return OpenMailAppResult(didOpen: didLaunch);
         } catch (e) {
-          print('ERROR: Mailto fallback failed: $e');
+          debugPrint('ERROR: Mailto fallback failed: $e');
         }
       }
     }
@@ -562,7 +586,7 @@ class OpenMail {
             .where((app) => !_filterList.contains(app.name.toLowerCase()))
             .toList();
       } catch (e) {
-        print('Error parsing mail apps: $e');
+        debugPrint('Error parsing mail apps: $e');
       }
     }
 
@@ -598,6 +622,9 @@ class OpenMail {
 /// A simple dialog for allowing the user to pick and open an email app
 /// Use with [OpenMail.getMailApps] or [OpenMail.openMailApp] to get a
 /// list of mail apps installed on the device.
+typedef MailAppPickerItemBuilder = Widget Function(
+    BuildContext context, MailApp app, VoidCallback onTap);
+
 class MailAppPickerDialog extends StatelessWidget {
   /// The title of the dialog
   final String title;
@@ -606,11 +633,15 @@ class MailAppPickerDialog extends StatelessWidget {
   final List<MailApp> mailApps;
   final EmailContent? emailContent;
 
+  /// Optional custom item builder for each mail app
+  final MailAppPickerItemBuilder? itemBuilder;
+
   const MailAppPickerDialog({
     super.key,
     this.title = 'Choose Mail App',
     required this.mailApps,
     this.emailContent,
+    this.itemBuilder,
   });
 
   @override
@@ -619,25 +650,29 @@ class MailAppPickerDialog extends StatelessWidget {
       title: Text(title),
       children: <Widget>[
         for (var app in mailApps)
-          SimpleDialogOption(
-            child: Text(app.name),
-            onPressed: () {
-              final content = emailContent;
-              if (content != null) {
-                OpenMail.composeNewEmailInSpecificMailApp(
-                  mailApp: app,
-                  emailContent: content,
-                );
-              } else {
-                // Pass app.name and null for emailContent
-                OpenMail.openSpecificMailApp(app.name, null);
-              }
-
-              Navigator.pop(context);
-            },
-          ),
+          itemBuilder != null
+              ? itemBuilder!(context, app, () {
+                  _handleTap(context, app);
+                })
+              : SimpleDialogOption(
+                  child: Text(app.name),
+                  onPressed: () => _handleTap(context, app),
+                ),
       ],
     );
+  }
+
+  void _handleTap(BuildContext context, MailApp app) {
+    final content = emailContent;
+    if (content != null) {
+      OpenMail.composeNewEmailInSpecificMailApp(
+        mailApp: app,
+        emailContent: content,
+      );
+    } else {
+      OpenMail.openSpecificMailApp(app.name, null);
+    }
+    Navigator.pop(context);
   }
 }
 
@@ -749,12 +784,16 @@ class EmailContent {
   /// The body of the email.
   final String? body;
 
+  /// List of file paths to attach (only supported by some mail apps, e.g. Apple Mail via mailto: on iOS/macOS)
+  final List<String>? attachments;
+
   EmailContent({
     this.to,
     this.subject,
     this.body,
     this.cc,
     this.bcc,
+    this.attachments,
   });
 
   Map<String, dynamic> toJson() {
@@ -764,6 +803,7 @@ class EmailContent {
       'body': body,
       'cc': cc,
       'bcc': bcc,
+      'attachments': attachments,
     }..removeWhere((key, value) => value == null);
   }
 
@@ -774,6 +814,9 @@ class EmailContent {
       body: json['body'] as String?,
       cc: json['cc'] != null ? List<String>.from(json['cc'] as List) : null,
       bcc: json['bcc'] != null ? List<String>.from(json['bcc'] as List) : null,
+      attachments: json['attachments'] != null
+          ? List<String>.from(json['attachments'] as List)
+          : null,
     );
   }
 }

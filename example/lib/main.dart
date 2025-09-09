@@ -1,6 +1,5 @@
 // ignore_for_file: use_build_context_synchronously
 
-
 import 'package:flutter/material.dart';
 import 'package:open_mail/open_mail.dart';
 
@@ -10,6 +9,18 @@ void main() {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
+  EmailContent get emailContent => EmailContent(
+        to: ['user@domain.com'],
+        subject: 'Hello!',
+        body: 'How are you doing? [Debug: ${DateTime.now()}]',
+        cc: ['user2@domain.com', 'user3@domain.com'],
+        bcc: ['boss@domain.com'],
+        attachments: [
+          // Example file path (must be accessible and supported by the mail app)
+          // 'file:///path/to/your/file.pdf',
+        ],
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +36,7 @@ class MyApp extends StatelessWidget {
             ElevatedButton(
               child: const Text("Open Mail App"),
               onPressed: () async {
-                // Try to open the mail app
+                //TODO: open default mail inbox only
                 var result = await OpenMail.openMailApp(
                   nativePickerTitle: 'Select email app to open',
                 );
@@ -50,45 +61,30 @@ class MyApp extends StatelessWidget {
 
             // Button to test mail app detection
             ElevatedButton(
-              child: const Text("Debug Mail App Detection"),
+              child: const Text("Debug Mail App Detection (Custom Picker)"),
               onPressed: () async {
                 try {
-                  // Get installed mail apps with detailed logging
-                  // Debug print removed
                   var options = await OpenMail.getMailApps();
-                  // Debug print removed
-                  // Debug print removed
-                  // Show the list of detected mail apps
                   showDialog(
                     context: context,
-                    builder: (_) {
-                      return AlertDialog(
-                        title: Text('Detected ${options.length} Mail Apps'),
-                        content: SingleChildScrollView(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: options
-                                .map((app) => ListTile(
-                                      title:
-                                          Text('${app.name} (${app.nativeId})'),
-                                      subtitle: Text(
-                                          'ID: ${app.nativeId ?? "No ID"}, Scheme: ${app.iosLaunchScheme ?? "No Scheme"}'),
-                                    ))
-                                .toList(),
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            child: const Text('Close'),
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                        ],
-                      );
-                    },
+                    builder: (_) => MailAppPickerDialog(
+                      mailApps: options,
+                      itemBuilder: (context, app, fn) => ListTile(
+                        onTap: () async {
+                          // TODO: open specific mail app inbox only
+                          await OpenMail.openSpecificMailApp(
+                              app.name, emailContent);
+                        },
+                        leading:
+                            const Icon(Icons.email), // Placeholder for icon
+                        title: Text(app.name),
+                        subtitle: Text(app.iosLaunchScheme ?? "No ID"),
+                      ),
+                    ),
                   );
                 } catch (e) {
                   // Debug print removed
+                  debugPrint('Error: $e');
                 }
               },
             ),
@@ -97,48 +93,25 @@ class MyApp extends StatelessWidget {
             ElevatedButton(
               child: const Text('Open mail app, with email already composed'),
               onPressed: () async {
-                // Define the content of the email with debug info
-                EmailContent email = EmailContent(
-                  to: ['user@domain.com'], // Recipient(s)
-                  subject: 'Hello!', // Email subject
-                  body:
-                      'How are you doing? [Debug: ${DateTime.now()}]', // Email body with timestamp for debugging
-                  cc: ['user2@domain.com', 'user3@domain.com'], // CC recipients
-                  bcc: ['boss@domain.com'], // BCC recipients
-                );
-
-                // Debug log
-                // Debug print removed
-
                 OpenMailAppResult result;
 
                 try {
-                  // Try to compose a new email in a mail app
                   result = await OpenMail.composeNewEmailInMailApp(
                       nativePickerTitle: 'Select email app to compose',
-                      emailContent: email);
+                      emailContent: emailContent);
 
-                  // Debug log after attempt
-                  // Debug print removed
-
-                  // If no mail apps are installed
                   if (!result.didOpen && !result.canOpen) {
                     showNoMailAppsDialog(context);
-                  }
-                  // If multiple mail apps are available on iOS, show a picker
-                  else if (!result.didOpen && result.canOpen) {
+                  } else if (!result.didOpen && result.canOpen) {
                     showDialog(
                       context: context,
                       builder: (_) => MailAppPickerDialog(
                         mailApps: result.options,
-                        emailContent: email,
+                        emailContent: emailContent,
                       ),
                     );
                   }
                 } catch (e) {
-                  // Catch and print any exceptions
-                  // Debug print removed
-                  // Show error dialog to user
                   showDialog(
                     context: context,
                     builder: (_) => AlertDialog(
@@ -212,6 +185,14 @@ class MyApp extends StatelessWidget {
           title: const Text("Open Mail App"),
           content: const Text("No mail apps installed"),
           actions: <Widget>[
+            TextButton(
+              child: const Text("Settings"),
+              onPressed: () async {
+                // Open device settings (works for both iOS and Android)
+                await OpenMail.openDeviceSettings();
+                Navigator.pop(context);
+              },
+            ),
             TextButton(
               child: const Text("OK"),
               onPressed: () {
