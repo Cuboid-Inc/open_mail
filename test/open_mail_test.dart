@@ -10,10 +10,7 @@ void main() {
     log.add(methodCall);
     switch (methodCall.method) {
       case 'openMailApp':
-        if (methodCall.arguments['nativePickerTitle'] != null) {
-          return true; // Simulate success for opening mail apps
-        }
-        return false; // Simulate failure if no title provided
+        return true; // Simulate success for opening mail apps
       case 'getMailApps':
         return '[{"name": "Gmail", "iosLaunchScheme": "googlegmail://"}]'; // Mock email app list
       case 'composeNewEmailInMailApp':
@@ -32,19 +29,13 @@ void main() {
 
   group('OpenMail', () {
     test('openMailApp successfully opens mail app', () async {
-      final result =
-          await OpenMail.openMailApp(nativePickerTitle: 'Choose Email App');
+      final result = await OpenMail.openMailApp();
       expect(result.didOpen, isTrue);
       expect(log.last.method, 'openMailApp');
-      expect(log.last.arguments,
-          containsPair('nativePickerTitle', 'Choose Email App'));
+      expect(log.last.arguments, isNull);
     });
 
-    test('openMailApp fails when no picker title is provided', () async {
-      final result = await OpenMail.openMailApp();
-      expect(result.didOpen, isFalse);
-      expect(log.last.method, 'openMailApp');
-    });
+    // Removed: picker title behavior no longer applicable
 
     test('getMailApps retrieves a list of installed mail apps', () async {
       final apps = await OpenMail.getMailApps();
@@ -96,6 +87,5 @@ void main() {
 
       expect(apps, isEmpty); // Gmail should be filtered out
     });
-
   });
 }

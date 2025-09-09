@@ -1,5 +1,8 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:developer';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:open_mail/open_mail.dart';
 
@@ -36,80 +39,29 @@ class MyApp extends StatelessWidget {
             ElevatedButton(
               child: const Text("Open Mail App"),
               onPressed: () async {
-                //TODO: open default mail inbox only
-                var result = await OpenMail.openMailApp(
-                  nativePickerTitle: 'Select email app to open',
-                );
+                var result = await OpenMail.openMailApp();
 
                 // If no mail apps are installed
                 if (!result.didOpen && !result.canOpen) {
                   showNoMailAppsDialog(context);
-                }
-                // If multiple mail apps are available on iOS, show a picker
-                else if (!result.didOpen && result.canOpen) {
-                  showDialog(
-                    context: context,
-                    builder: (_) {
-                      return MailAppPickerDialog(
-                        mailApps: result.options,
-                      );
-                    },
-                  );
-                }
-              },
-            ),
-
-            // Button to test mail app detection
-            ElevatedButton(
-              child: const Text("Debug Mail App Detection (Custom Picker)"),
-              onPressed: () async {
-                try {
-                  var options = await OpenMail.getMailApps();
-                  showDialog(
-                    context: context,
-                    builder: (_) => MailAppPickerDialog(
-                      mailApps: options,
-                      itemBuilder: (context, app, fn) => ListTile(
-                        onTap: () async {
-                          // TODO: open specific mail app inbox only
-                          await OpenMail.openSpecificMailApp(
-                              app.name, emailContent);
-                        },
-                        leading:
-                            const Icon(Icons.email), // Placeholder for icon
-                        title: Text(app.name),
-                        subtitle: Text(app.iosLaunchScheme ?? "No ID"),
-                      ),
-                    ),
-                  );
-                } catch (e) {
-                  // Debug print removed
-                  debugPrint('Error: $e');
                 }
               },
             ),
 
             // Button to compose an email in the mail app
             ElevatedButton(
-              child: const Text('Open mail app, with email already composed'),
+              child: const Text('Compose Email'),
               onPressed: () async {
                 OpenMailAppResult result;
 
                 try {
+                  // Compose a new email using the first available mail app
                   result = await OpenMail.composeNewEmailInMailApp(
                       nativePickerTitle: 'Select email app to compose',
                       emailContent: emailContent);
 
                   if (!result.didOpen && !result.canOpen) {
                     showNoMailAppsDialog(context);
-                  } else if (!result.didOpen && result.canOpen) {
-                    showDialog(
-                      context: context,
-                      builder: (_) => MailAppPickerDialog(
-                        mailApps: result.options,
-                        emailContent: emailContent,
-                      ),
-                    );
                   }
                 } catch (e) {
                   showDialog(
@@ -129,16 +81,13 @@ class MyApp extends StatelessWidget {
               },
             ),
 
-            // Button to get the list of installed mail apps
+            // Button to get the list of installed mail apps and open a specific one
             ElevatedButton(
-              child: const Text("Get Mail Apps"),
+              child: const Text("Open Specific One Mail App"),
               onPressed: () async {
                 try {
-                  // Retrieve the list of installed mail apps
+                  // Open the first available mail app directly if only one is installed
                   var apps = await OpenMail.getMailApps();
-
-                  // Debug print removed
-                  // Debug print removed
 
                   // If no mail apps are installed
                   if (apps.isEmpty) {
@@ -149,18 +98,104 @@ class MyApp extends StatelessWidget {
                     showDialog(
                       context: context,
                       builder: (context) {
-                        return MailAppPickerDialog(
-                          mailApps: apps,
-                          emailContent: EmailContent(
-                            to: ['user@domain.com'], // Pre-filled recipient
-                            subject: 'Hello!', // Pre-filled subject
-                            body: 'How are you doing?', // Pre-filled body
-                            cc: [
-                              'user2@domain.com',
-                              'user3@domain.com'
-                            ], // Pre-filled CC
-                            bcc: ['boss@domain.com'], // Pre-filled BCC
+                        return AlertDialog(
+                          title: const Text('Installed Mail Apps'),
+                          content: SizedBox(
+                            width: double.maxFinite,
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: apps.length,
+                              itemBuilder: (context, index) {
+                                final app = apps[index];
+                                return ListTile(
+                                  onTap: () async {
+                                    try {
+                                      await OpenMail.openSpecificMailApp(
+                                          app.name);
+                                    } catch (e) {
+                                      log('Error: $e');
+                                    }
+                                  },
+                                  title: Text(app.name),
+                                  subtitle: Text(Platform.isIOS
+                                      ? 'iOS Scheme: ${app.iosLaunchScheme}'
+                                      : Platform.isAndroid
+                                          ? 'Package: ${app.nativeId}'
+                                          : 'Unknown Platform'),
+                                );
+                              },
+                            ),
                           ),
+                          actions: [
+                            TextButton(
+                              child: const Text('OK'),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  }
+                } catch (e) {
+                  // Debug print removed
+                }
+              },
+            ),
+
+            // Get Mails Apps and Compose Email in Specific One
+
+            ElevatedButton(
+              child: const Text("Compose Email in Specific Mail Apps"),
+              onPressed: () async {
+                try {
+                  // Retrieve the list of installed mail apps
+                  var apps = await OpenMail.getMailApps();
+
+                  // If no mail apps are installed
+                  if (apps.isEmpty) {
+                    showNoMailAppsDialog(context);
+                  }
+                  // Show a dialog listing all available mail apps
+                  else {
+                    showDialog(
+                      context: context,
+                      builder: (context) {
+                        return AlertDialog(
+                          title: const Text('Installed Mail Apps'),
+                          content: SizedBox(
+                            width: double.maxFinite,
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              itemCount: apps.length,
+                              itemBuilder: (context, index) {
+                                final app = apps[index];
+                                return ListTile(
+                                  onTap: () async {
+                                    try {
+                                      await OpenMail
+                                          .composeNewEmailInSpecificMailApp(
+                                              mailApp: app,
+                                              emailContent: emailContent);
+                                    } catch (e) {
+                                      log('Error: $e');
+                                    }
+                                  },
+                                  title: Text(app.name),
+                                  subtitle: Text(Platform.isIOS
+                                      ? 'iOS Scheme: ${app.iosLaunchScheme}'
+                                      : Platform.isAndroid
+                                          ? 'Package: ${app.nativeId}'
+                                          : 'Unknown Platform'),
+                                );
+                              },
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              child: const Text('OK'),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                          ],
                         );
                       },
                     );
