@@ -2,6 +2,33 @@
 
 #
 
+## [1.2.0] - 2025-09-09
+
+### Breaking Changes
+
+- OpenMail.openMailApp: removed the nativePickerTitle parameter. Android now uses the system default chooser title.
+- OpenMail.openSpecificMailApp: signature changed to openSpecificMailApp(String name). It now opens the target app’s inbox only and returns OpenMailAppResult, similar to openMailApp.
+
+### Changed
+
+- iOS: Apple Mail inbox scheme switched from mailto:// to message:// for opening the inbox reliably.
+- Android: native implementation for openMailApp ignores custom titles and uses Intent chooser with default title.
+- Example and tests updated to match new APIs.
+
+### Fixed
+
+- iOS detection of Gmail and other apps: clarified and enforced LSApplicationQueriesSchemes requirements so canOpenURL works and Gmail appears in the list when installed.
+
+### iOS Setup Notes
+
+- Ensure these URL schemes are added to your app’s Info.plist under LSApplicationQueriesSchemes for detection:
+  - googlegmail, x-dispatch, readdle-spark, airmail, ms-outlook, ymail, fastmail, superhuman, protonmail, message
+
+### Migration
+
+- Replace OpenMail.openMailApp(nativePickerTitle: '...') with OpenMail.openMailApp().
+- Replace OpenMail.openSpecificMailApp(name, emailContent) with OpenMail.openSpecificMailApp(name).
+
 ## [1.1.0] - 2025-05-26
 
 ### Added
