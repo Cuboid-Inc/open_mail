@@ -205,8 +205,7 @@ class OpenMail {
   ///
   /// Android: Will open mail app or show native picker if multiple.
   ///
-  /// iOS: Will open mail app if single installed mail app is found. If multiple
-  /// are found will return a [OpenMailAppResult] that contains list of
+  /// iOS: Will open the first mail app found. Returns a [OpenMailAppResult] that contains list of
   /// [MailApp]s. This can be used along with [MailAppPickerDialog] to allow
   /// the user to pick the mail app they want to open.
   ///
