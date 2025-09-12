@@ -86,7 +86,7 @@ class MyApp extends StatelessWidget {
               child: const Text("Open Specific One Mail App"),
               onPressed: () async {
                 try {
-                  // Open the first available mail app directly if only one is installed
+                  // Get all available mail apps
                   var apps = await OpenMail.getMailApps();
 
                   // If no mail apps are installed
