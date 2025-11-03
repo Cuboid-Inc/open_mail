@@ -55,7 +55,7 @@ Add the following to your `pubspec.yaml`:
 
 ```
 dependencies:
-  open_mail: latest_version
+  open_mail: ^1.2.1
 ```
 
 Then, run the following command:
@@ -66,48 +66,35 @@ flutter pub get
 
 ## Usage
 
-### Open Mail App with Picker (if multiple apps are available)
-
-Below is a full example of how to use the package:
+### Basic Usage - Open First Available Mail App
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:open_mail/open_mail.dart';
 
 void main() {
-  runApp(MaterialApp(home: MyApp()));
+  runApp(const MaterialApp(home: MyApp()));
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Open Mail App Example'),
+        title: const Text('Open Mail App Example'),
       ),
       body: Center(
         child: ElevatedButton(
-          child: Text("Open Mail App"),
           onPressed: () async {
-            // Attempt to open a mail app
-            var result = await OpenMail.openMailApp();
-
-            // If no mail apps are found, show an error dialog
-            if (!result.didOpen && !result.canOpen) {
+            final result = await OpenMail.openMailApp();
+            
+            if (!result.didOpen) {
               showNoMailAppsDialog(context);
             }
-            // If multiple mail apps are found (iOS), show a picker dialog
-            else if (!result.didOpen && result.canOpen) {
-              showDialog(
-                context: context,
-                builder: (_) {
-                  return MailAppPickerDialog(
-                    mailApps: result.options,
-                  );
-                },
-              );
-            }
           },
+          child: const Text("Open Mail App"),
         ),
       ),
     );
@@ -116,24 +103,342 @@ class MyApp extends StatelessWidget {
   void showNoMailAppsDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("No Mail Apps Found"),
-          content: Text("There are no email apps installed on your device."),
-          actions: [
-            TextButton(
-              child: Text("OK"),
-              onPressed: () {
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        );
-      },
+      builder: (context) => AlertDialog(
+        title: const Text("No Mail Apps Found"),
+        content: const Text("There are no email apps installed on your device."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
     );
   }
 }
 ```
+
+### Advanced Usage - Show Mail App Picker
+
+To allow users to select from multiple installed mail apps, follow this pattern:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:open_mail/open_mail.dart';
+
+class MailAppPickerExample extends StatefulWidget {
+  const MailAppPickerExample({super.key});
+
+  @override
+  State<MailAppPickerExample> createState() => _MailAppPickerExampleState();
+}
+
+class _MailAppPickerExampleState extends State<MailAppPickerExample> {
+  List<MailApp> _availableApps = [];
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMailApps();
+  }
+
+  Future<void> _loadMailApps() async {
+    setState(() => _isLoading = true);
+    final apps = await OpenMail.getMailApps();
+    setState(() {
+      _availableApps = apps;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _openMailAppWithPicker() async {
+    if (_availableApps.isEmpty) {
+      showNoMailAppsDialog(context);
+      return;
+    }
+
+    // If only one app is available, open it directly
+    if (_availableApps.length == 1) {
+      await OpenMail.openMailApp();
+      return;
+    }
+
+    // Show custom picker dialog
+    final selectedApp = await showDialog<MailApp>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Email App'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: _availableApps.length,
+            itemBuilder: (context, index) {
+              final app = _availableApps[index];
+              return ListTile(
+                leading: const Icon(Icons.email),
+                title: Text(app.name),
+                onTap: () => Navigator.of(context).pop(app),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    if (selectedApp != null) {
+      await OpenMail.openSpecificMailApp(selectedApp.name);
+    }
+  }
+
+  void showNoMailAppsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("No Mail Apps Found"),
+        content: const Text("There are no email apps installed on your device."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mail App Picker Example'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_isLoading)
+              const CircularProgressIndicator()
+            else
+              ElevatedButton(
+                onPressed: _openMailAppWithPicker,
+                child: Text(_availableApps.length == 1
+                    ? "Open Mail App"
+                    : "Pick Mail App"),
+              ),
+            const SizedBox(height: 16),
+            Text(
+              'Available Apps: ${_availableApps.length}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+### Migration Guide (v1.1.0 → v1.2.0)
+
+If you're upgrading from v1.1.0, here's how to migrate your code:
+
+#### Before (v1.1.0):
+```dart
+// OLD: Using the now-removed MailAppPickerDialog
+var result = await OpenMail.openMailApp();
+if (!result.didOpen && result.canOpen) {
+  showDialog(
+    context: context,
+    builder: (_) {
+      return MailAppPickerDialog(  // This no longer exists!
+        mailApps: result.options,
+      );
+    },
+  );
+}
+```
+
+#### After (v1.2.0):
+```dart
+// NEW: Custom picker implementation
+final apps = await OpenMail.getMailApps();
+if (apps.isEmpty) {
+  showNoMailAppsDialog(context);
+} else if (apps.length == 1) {
+  await OpenMail.openMailApp();
+} else {
+  final selectedApp = await showDialog<MailApp>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Select Email App'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: apps.map((app) => ListTile(
+          leading: const Icon(Icons.email),
+          title: Text(app.name),
+          onTap: () => Navigator.of(context).pop(app),
+        )).toList(),
+      ),
+    ),
+  );
+  
+  if (selectedApp != null) {
+    await OpenMail.openSpecificMailApp(selectedApp.name);
+  }
+}
+```
+
+### API Changes in v1.2.0
+
+- **Removed**: `MailAppPickerDialog` widget (replaced with custom dialog pattern)
+- **Changed**: `OpenMail.openMailApp()` no longer accepts `nativePickerTitle` parameter on Android
+- **Changed**: `OpenMail.openSpecificMailApp(name, emailContent)` → `OpenMail.openSpecificMailApp(name)`
+- **New**: `OpenMail.getMailApps()` - Get list of available mail apps
+
+### Opening Specific Mail Apps
+
+```dart
+// Get available apps first
+final apps = await OpenMail.getMailApps();
+
+// Open a specific app by name
+await OpenMail.openSpecificMailApp('Gmail');
+
+// Open Apple Mail
+await OpenMail.openSpecificMailApp('Apple Mail');
+```
+## Version 1.2.0 Changes and Feedback
+
+### What Changed in v1.2.0
+
+The v1.2.0 release introduced several breaking changes to improve the package's API design and remove deprecated functionality:
+
+1. **Removed MailAppPickerDialog**: The built-in picker dialog was removed in favor of a more flexible custom dialog pattern
+2. **Simplified API**: Removed the `nativePickerTitle` parameter and streamlined the `openSpecificMailApp` method
+3. **Improved iOS Support**: Switched to using `message://` scheme for Apple Mail inbox access
+
+### Addressing Versioning Concerns
+
+We acknowledge that the removal of `MailAppPickerDialog` in a minor version (1.2.0) may seem inconsistent with semantic versioning principles. However, this change was made for the following reasons:
+
+- **API Simplification**: The MailAppPickerDialog was a minimal wrapper that didn't provide significant value over a custom dialog
+- **Flexibility**: Custom dialogs allow developers full control over styling and functionality
+- **Reduced Dependencies**: Removing the widget reduces the package's footprint and potential conflicts
+- **Clean Architecture**: Encourages developers to implement their own UI patterns that match their app's design system
+
+### Migration Benefits
+
+The v1.2.0 changes provide several benefits:
+
+- **Better Performance**: Custom dialogs can be optimized for your specific use case
+- **Enhanced Customization**: Full control over dialog appearance and behavior
+- **Simplified API**: Fewer parameters and clearer method signatures
+- **Platform Consistency**: More predictable behavior across iOS and Android
+- **Design System Alignment**: Use your app's native dialog components for consistency
+
+For most use cases, the migration requires minimal changes - typically just replacing the `MailAppPickerDialog` with a custom `AlertDialog` or `SimpleDialog` using the list of apps returned by `OpenMail.getMailApps()`.
+
+### Complete Migration Example
+
+Here's a complete before/after comparison showing how to migrate from v1.1.0 to v1.2.0:
+
+```dart
+// v1.1.0 Code (Broken in v1.2.0)
+class OldMailPicker extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: () async {
+        var result = await OpenMail.openMailApp();
+        if (!result.didOpen && result.canOpen) {
+          showDialog(
+            context: context,
+            builder: (_) {
+              return MailAppPickerDialog(  // ❌ No longer exists!
+                mailApps: result.options,
+              );
+            },
+          );
+        }
+      },
+      child: Text('Open Mail App'),
+    );
+  }
+}
+
+// v1.2.0 Code (Recommended)
+class NewMailPicker extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: () => _openMailApp(context),
+      child: Text('Open Mail App'),
+    );
+  }
+
+  Future<void> _openMailApp(BuildContext context) async {
+    final apps = await OpenMail.getMailApps();
+    
+    if (apps.isEmpty) {
+      _showNoAppsDialog(context);
+      return;
+    }
+    
+    if (apps.length == 1) {
+      // Single app - open directly
+      await OpenMail.openMailApp();
+      return;
+    }
+    
+    // Multiple apps - show picker
+    final selectedApp = await showDialog<MailApp>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Email App'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: apps.length,
+            itemBuilder: (context, index) {
+              final app = apps[index];
+              return ListTile(
+                leading: const Icon(Icons.email, color: Colors.blue),
+                title: Text(app.name),
+                onTap: () => Navigator.of(context).pop(app),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    
+    if (selectedApp != null) {
+      await OpenMail.openSpecificMailApp(selectedApp.name);
+    }
+  }
+  
+  void _showNoAppsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('No Email Apps Found'),
+        content: const Text('Please install an email app to continue.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+This migration provides a more robust and customizable solution while maintaining the same core functionality.
 
 ## Key Features
 

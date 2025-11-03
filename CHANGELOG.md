@@ -1,6 +1,28 @@
 # Changelog
 
-#
+## [1.2.1] - 2025-11-03
+
+### Added
+
+- Comprehensive migration documentation for v1.2.0 API changes
+- Complete usage examples for custom mail app picker implementation
+- Detailed explanation of MailAppPickerDialog replacement patterns
+- Professional response to semantic versioning concerns raised by users
+- Step-by-step migration guide from v1.1.0 to v1.2.0 with working code examples
+
+### Improved
+
+- README documentation with better structure and clearer examples
+- Added complete before/after code comparisons for migration
+- Enhanced API documentation with new usage patterns
+
+### Documentation
+
+- Updated README with Basic Usage and Advanced Usage sections
+- Added migration benefits and rationale for API changes
+- Provided professional explanation of versioning decisions
+
+## [1.2.0] - 2025-09-09
 
 ## [1.2.0] - 2025-09-09
 
