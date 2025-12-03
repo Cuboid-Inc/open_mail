@@ -99,6 +99,42 @@ final List<MailApp> mailApps = <MailApp>[
   ),
 ];
 
+/// Builds a mailto: URI with proper percent-encoding for spaces (%20 instead of +).
+///
+/// The standard Uri class uses application/x-www-form-urlencoded encoding for
+/// queryParameters, which encodes spaces as '+'. However, mailto: URIs require
+/// RFC 3986 percent-encoding where spaces are encoded as '%20'.
+/// Apple Mail and some other mail clients don't decode '+' as spaces.
+Uri _buildMailtoUri(EmailContent emailContent) {
+  final recipient = emailContent.to?.join(',') ?? '';
+  final params = <String>[];
+
+  if (emailContent.subject?.isNotEmpty == true) {
+    params.add('subject=${Uri.encodeComponent(emailContent.subject!)}');
+  }
+  if (emailContent.body?.isNotEmpty == true) {
+    params.add('body=${Uri.encodeComponent(emailContent.body!)}');
+  }
+  if (emailContent.cc?.isNotEmpty == true) {
+    params.add('cc=${emailContent.cc!.join(',')}');
+  }
+  if (emailContent.bcc?.isNotEmpty == true) {
+    params.add('bcc=${emailContent.bcc!.join(',')}');
+  }
+  // Attachments (Apple Mail only, mailto:)
+  if (emailContent.attachments != null &&
+      emailContent.attachments!.isNotEmpty) {
+    // Apple Mail supports 'attachment' param (file:// URLs)
+    for (var i = 0; i < emailContent.attachments!.length; i++) {
+      final paramName = i > 0 ? 'attachment${i + 1}' : 'attachment';
+      params.add('$paramName=${Uri.encodeComponent(emailContent.attachments![i])}');
+    }
+  }
+
+  final query = params.isNotEmpty ? '?${params.join('&')}' : '';
+  return Uri.parse('mailto:$recipient$query');
+}
+
 class OpenMail {
   /// Opens the device settings page (works for both iOS and Android)
   static Future<void> openDeviceSettings() async {
@@ -299,18 +335,7 @@ class OpenMail {
           try {
             debugPrint(
                 'DEBUG: Apple Mail detected, using mailto: fallback for compose');
-            final mailtoUri = Uri(
-              scheme: 'mailto',
-              path: emailContent.to?.join(',') ?? '',
-              queryParameters: {
-                'subject': emailContent.subject ?? '',
-                'body': emailContent.body ?? '',
-                if (emailContent.cc?.isNotEmpty ?? false)
-                  'cc': emailContent.cc!.join(','),
-                if (emailContent.bcc?.isNotEmpty ?? false)
-                  'bcc': emailContent.bcc!.join(','),
-              },
-            );
+            final mailtoUri = _buildMailtoUri(emailContent);
             debugPrint('DEBUG: Mailto URI for Apple Mail: $mailtoUri');
             result = await launchUrl(mailtoUri);
           } catch (e) {
@@ -329,18 +354,7 @@ class OpenMail {
               } else {
                 debugPrint(
                     'DEBUG: Custom scheme failed, falling back to mailto:');
-                final mailtoUri = Uri(
-                  scheme: 'mailto',
-                  path: emailContent.to?.join(',') ?? '',
-                  queryParameters: {
-                    'subject': emailContent.subject ?? '',
-                    'body': emailContent.body ?? '',
-                    if (emailContent.cc?.isNotEmpty ?? false)
-                      'cc': emailContent.cc!.join(','),
-                    if (emailContent.bcc?.isNotEmpty ?? false)
-                      'bcc': emailContent.bcc!.join(','),
-                  },
-                );
+                final mailtoUri = _buildMailtoUri(emailContent);
                 debugPrint('DEBUG: Mailto URI fallback: $mailtoUri');
                 result = await launchUrl(mailtoUri);
               }
@@ -348,18 +362,7 @@ class OpenMail {
               debugPrint(
                   'ERROR: Custom scheme failed, trying mailto fallback: $e');
               try {
-                final mailtoUri = Uri(
-                  scheme: 'mailto',
-                  path: emailContent.to?.join(',') ?? '',
-                  queryParameters: {
-                    'subject': emailContent.subject ?? '',
-                    'body': emailContent.body ?? '',
-                    if (emailContent.cc?.isNotEmpty ?? false)
-                      'cc': emailContent.cc!.join(','),
-                    if (emailContent.bcc?.isNotEmpty ?? false)
-                      'bcc': emailContent.bcc!.join(','),
-                  },
-                );
+                final mailtoUri = _buildMailtoUri(emailContent);
                 debugPrint(
                     'DEBUG: Mailto URI fallback (exception): $mailtoUri');
                 result = await launchUrl(mailtoUri);
@@ -405,28 +408,7 @@ class OpenMail {
       // Always use mailto: for Apple Mail
       if (mailApp.name == 'Apple Mail') {
         try {
-          final qp = <String, String>{
-            'subject': emailContent.subject ?? '',
-            'body': emailContent.body ?? '',
-            if (emailContent.cc?.isNotEmpty ?? false)
-              'cc': emailContent.cc!.join(','),
-            if (emailContent.bcc?.isNotEmpty ?? false)
-              'bcc': emailContent.bcc!.join(','),
-          };
-          // Attachments (Apple Mail only, mailto:)
-          if (emailContent.attachments != null &&
-              emailContent.attachments!.isNotEmpty) {
-            // Apple Mail supports 'attachment' param (file:// URLs)
-            for (var i = 0; i < emailContent.attachments!.length; i++) {
-              qp['attachment${i > 0 ? i + 1 : ''}'] =
-                  emailContent.attachments![i];
-            }
-          }
-          final mailtoUri = Uri(
-            scheme: 'mailto',
-            path: emailContent.to?.join(',') ?? '',
-            queryParameters: qp,
-          );
+          final mailtoUri = _buildMailtoUri(emailContent);
           return await launchUrl(mailtoUri);
         } catch (e) {
           return false;
@@ -466,36 +448,14 @@ class OpenMail {
             return result;
           } else {
             // Debug debugPrint removed
-            final mailtoUri = Uri(
-              scheme: 'mailto',
-              path: emailContent.to?.join(',') ?? '',
-              queryParameters: {
-                'subject': emailContent.subject ?? '',
-                'body': emailContent.body ?? '',
-                if (emailContent.cc?.isNotEmpty ?? false)
-                  'cc': emailContent.cc!.join(','),
-                if (emailContent.bcc?.isNotEmpty ?? false)
-                  'bcc': emailContent.bcc!.join(','),
-              },
-            );
+            final mailtoUri = _buildMailtoUri(emailContent);
             // Debug debugPrint removed
             return await launchUrl(mailtoUri);
           }
         } catch (e) {
           // Debug debugPrint removed
           try {
-            final mailtoUri = Uri(
-              scheme: 'mailto',
-              path: emailContent.to?.join(',') ?? '',
-              queryParameters: {
-                'subject': emailContent.subject ?? '',
-                'body': emailContent.body ?? '',
-                if (emailContent.cc?.isNotEmpty ?? false)
-                  'cc': emailContent.cc!.join(','),
-                if (emailContent.bcc?.isNotEmpty ?? false)
-                  'bcc': emailContent.bcc!.join(','),
-              },
-            );
+            final mailtoUri = _buildMailtoUri(emailContent);
             // Debug debugPrint removed
             return await launchUrl(mailtoUri);
           } catch (e2) {
